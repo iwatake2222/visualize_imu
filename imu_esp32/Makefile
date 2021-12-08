@@ -3,6 +3,6 @@
 # project subdirectory.
 #
 
-PROJECT_NAME := sensor_esp32
+PROJECT_NAME := imu_esp32
 
 include $(IDF_PATH)/make/project.mk

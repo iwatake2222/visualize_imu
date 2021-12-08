@@ -17,7 +17,7 @@ aaa
 
 # How to Build
 ## How to Build Firmware for ESP32 + IMU
-- Open `sensor_esp32` folder
+- Open `imu_esp32` folder
 - `idf.py menuconfig`
     - set `ESP_WIFI_SSID` for your environment
     - set `ESP_WIFI_PASSWORD` for your environment
