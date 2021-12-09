@@ -27,6 +27,15 @@ limitations under the License.
 #include "wifi_helper.h"
 #include "imu_lsm9ds1.h"
 
+/*** Type ***/
+/* this must be the same as in PC side */
+typedef struct {
+    uint32_t timestamp; // [ms]
+    int16_t acc[3];
+    int16_t gyro[3];
+    int16_t mag[3];
+} PayloadIMU;
+
 /*** Macro ***/
 static const char *TAG = "main";
 static const char *ADDRESS_DST = "192.168.1.2";
@@ -55,13 +64,10 @@ extern "C" void app_main(void)
 
     while(1) {
         uint32_t current_ms_time = pdTICKS_TO_MS(xTaskGetTickCount());
-        printf("%d\n", current_ms_time);
-        char buffer[128];
-        snprintf(buffer, sizeof(buffer), "[%08d] Message from ESP32", current_ms_time);
-        int32_t msg_len = strnlen(buffer, sizeof(buffer));
-        socket.send_to(asio::buffer(buffer, msg_len), destination);
+        ESP_LOGV(TAG, "%d\n", current_ms_time);
 
-        (void)imu_read_temperature();
+        /*** Get data from IMU sensor ***/
+        // (void)imu_read_temperature();
 
         int16_t acc_x = 0;
         int16_t acc_y = 0;
@@ -77,6 +83,20 @@ extern "C" void app_main(void)
         int16_t mag_y = 0;
         int16_t mag_z = 0;
         imu_read_mag(mag_x, mag_y, mag_z);
+
+        /*** Send the data to PC via WiFi (UDP) ***/
+        PayloadIMU payload;
+        payload.timestamp = current_ms_time;
+        payload.acc[0] = acc_x;
+        payload.acc[1] = acc_y;
+        payload.acc[2] = acc_z;
+        payload.gyro[0] = gyro_x;
+        payload.gyro[1] = gyro_y;
+        payload.gyro[2] = gyro_z;
+        payload.mag[0] = mag_x;
+        payload.mag[1] = mag_y;
+        payload.mag[2] = mag_z;
+        socket.send_to(asio::buffer(&payload, sizeof(payload)), destination);
 
         // vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
