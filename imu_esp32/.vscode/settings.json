@@ -1,3 +1,8 @@
 {
-  "C_Cpp.intelliSenseEngine": "Tag Parser"
+  "C_Cpp.intelliSenseEngine": "Tag Parser",
+  "files.associations": {
+    "array": "cpp",
+    "string": "cpp",
+    "string_view": "cpp"
+  }
 }

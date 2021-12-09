@@ -22,8 +22,10 @@ limitations under the License.
 #include "esp_log.h"
 #include "nvs_flash.h"
 #include "asio.hpp"
+#include "driver/i2c.h"
 
 #include "wifi_helper.h"
+#include "imu_lsm9ds1.h"
 
 /*** Macro ***/
 static const char *TAG = "main";
@@ -47,6 +49,10 @@ extern "C" void app_main(void)
     asio::io_context io_context;
     asio::ip::udp::socket socket(io_context, asio::ip::udp::endpoint(asio::ip::udp::v4(), 1234));
     asio::ip::udp::endpoint destination(asio::ip::address_v4::from_string(ADDRESS_DST), PORT_DST);
+
+    ESP_LOGI(TAG, "Initialize IMU");
+    ESP_ERROR_CHECK(imu_initialize());
+
 
     while(1) {
         uint32_t current_ms_time = pdTICKS_TO_MS(xTaskGetTickCount());
