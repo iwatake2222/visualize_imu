@@ -13,13 +13,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 /*** Include ***/
+#include <cmath>
 #include "esp_system.h"
+#define LOG_LOCAL_LEVEL ESP_LOG_DEBUG
+// #define LOG_LOCAL_LEVEL ESP_LOG_INFO
 #include "esp_log.h"
 #include "driver/i2c.h"
 
 #include "imu_lsm9ds1.h"
 
-
+ 
 /*** Macro ***/
 static const char *TAG = "imu";
 
@@ -35,10 +38,9 @@ static const char *TAG = "imu";
 #define ACC_GYRO_ADDR 0x6A
 #define ACC_GYRO_CMD_WHOAMI 0x0F
 #define ACC_GYRO_CMD_CTRL_REG1_G 0x10
-#define ACC_GYRO_CMD_CTRL_REG2_G 0x10
-#define ACC_GYRO_CMD_CTRL_REG3_G 0x10
+#define ACC_GYRO_CMD_CTRL_REG2_G 0x11
+#define ACC_GYRO_CMD_CTRL_REG3_G 0x12
 #define ACC_GYRO_CMD_OUT_TEMP_L 0x15
-#define ACC_GYRO_CMD_OUT_TEMP_H 0x16
 #define ACC_GYRO_CMD_OUT_X_G 0x18
 #define ACC_GYRO_CMD_CTRL_REG4 0x1E
 #define ACC_GYRO_CMD_CTRL_REG5_XL 0x1F
@@ -51,6 +53,11 @@ static const char *TAG = "imu";
 
 #define MAG_ADDR 0x1C
 #define MAG_CMD_WHOAMI 0x0F
+#define MAG_CMD_CTRL_REG1_M 0x20
+#define MAG_CMD_CTRL_REG2_M 0x21
+#define MAG_CMD_CTRL_REG3_M 0x22
+#define MAG_CMD_CTRL_REG4_M 0x23
+#define MAG_CMD_OUT_X_M 0x28
 
 /*** Global variable ***/
 
@@ -121,6 +128,76 @@ static esp_err_t i2c_read(uint8_t slave_addr, uint8_t sub_addr, uint8_t* data, u
     return ret;
 }
 
+union ValShort {
+    struct {
+        uint8_t low;
+        uint8_t high;
+    } raw;
+    int16_t val;
+};
+
+#define SHORT_FS 32768
+#define GYRO_FS 500 // [dps]
+#define ACC_FS 2 // [G]
+#define MAG_FS 4 // [Gauss]
+
+int16_t imu_read_temperature()
+{
+    ValShort val;
+    i2c_read(MAG_ADDR, ACC_GYRO_CMD_OUT_TEMP_L, (uint8_t*)&val, sizeof(val));
+    ESP_LOGV(TAG, "[TEMP] val = %d, val_l = 0x%02X, val_h = 0x%02X", val.val, val.raw.low, val.raw.high);
+    val.raw.high &= 0x0F;
+    if (val.raw.high >= 0x08) {
+        val.raw.high |= 0xF0;
+    }
+    ESP_LOGD(TAG, "[TEMP] val = %d", val.val);
+    return val.val;
+}
+
+
+void imu_read_gyro(int16_t& x, int16_t& y, int16_t& z)
+{
+    ValShort val[3];
+    i2c_read(ACC_GYRO_ADDR, ACC_GYRO_CMD_OUT_X_G, (uint8_t*)&val, sizeof(val));
+    for (int32_t i = 0; i < 3; i++) {
+        ESP_LOGV(TAG, "[GYRO] %d: val = %d, val_l = 0x%02X, val_h = 0x%02X", i, val[i].val, val[i].raw.low, val[i].raw.high);
+    }
+    ESP_LOGD(TAG, "[GYRO] x = %.03f, y = %.03f, z = %.03f", (float)val[0].val / SHORT_FS * GYRO_FS, (float)val[1].val / SHORT_FS * GYRO_FS, (float)val[2].val / SHORT_FS * GYRO_FS);
+
+    x = val[0].val;
+    y = val[1].val;
+    z = val[2].val;
+}
+
+void imu_read_acc(int16_t& x, int16_t& y, int16_t& z)
+{
+    ValShort val[3];
+    i2c_read(ACC_GYRO_ADDR, ACC_GYRO_CMD_OUT_X_XL, (uint8_t*)&val, sizeof(val));
+    for (int32_t i = 0; i < 3; i++) {
+        ESP_LOGV(TAG, "[ACC]  %d: val = %d, val_l = 0x%02X, val_h = 0x%02X", i, val[i].val, val[i].raw.low, val[i].raw.high);
+    }
+    ESP_LOGD(TAG, "[ACC] x = %.03f, y = %.03f, z = %.03f", (float)val[0].val / SHORT_FS * ACC_FS, (float)val[1].val / SHORT_FS * ACC_FS, (float)val[2].val / SHORT_FS * ACC_FS);
+    x = val[0].val;
+    y = val[1].val;
+    z = val[2].val;
+}
+
+void imu_read_mag(int16_t& x, int16_t& y, int16_t& z)
+{
+    ValShort val[3];
+    i2c_read(MAG_ADDR, MAG_CMD_OUT_X_M, (uint8_t*)&val, sizeof(val));
+    for (int32_t i = 0; i < 3; i++) {
+        ESP_LOGV(TAG, "[MAG]  %d: val = %d, val_l = 0x%02X, val_h = 0x%02X", i, val[i].val, val[i].raw.low, val[i].raw.high);
+    }
+    ESP_LOGD(TAG, "[MAG] x = %.03f, y = %.03f, z = %.03f", (float)val[0].val / SHORT_FS * MAG_FS, (float)val[1].val / SHORT_FS * MAG_FS, (float)val[2].val / SHORT_FS * MAG_FS);
+    float rad = atan2((float)val[1].val / SHORT_FS * MAG_FS, (float)val[2].val / SHORT_FS * MAG_FS); 
+    ESP_LOGD(TAG, "[MAG] deg = %.01f", rad * 180 / 3.14159);
+
+    x = val[0].val;
+    y = val[1].val;
+    z = val[2].val;
+}
+
 esp_err_t imu_initialize()
 {
     int ret = ESP_OK;
@@ -129,13 +206,43 @@ esp_err_t imu_initialize()
     ESP_ERROR_CHECK(i2c_master_init());
 
     ESP_LOGI(TAG, "device test");
-    uint8_t whoami = 0xFF;
+    uint8_t whoami = 0;
     i2c_read(ACC_GYRO_ADDR, ACC_GYRO_CMD_WHOAMI, &whoami);
     ESP_LOGI(TAG, "[ACC_GYRO] whoami = 0x%02X", whoami);
     ESP_ERROR_CHECK_WITHOUT_ABORT(whoami != 0x68);
     i2c_read(MAG_ADDR, MAG_CMD_WHOAMI, &whoami);
     ESP_LOGI(TAG, "[MAG] whoami = 0x%02X", whoami);
     ESP_ERROR_CHECK_WITHOUT_ABORT(whoami != 0x3D);
+
+    ESP_LOGI(TAG, "Setting Accelerometer and gyroscope");
+    uint8_t odr_g = 6;  // ODR = 952 Hz
+    uint8_t fs_g = 1;   // 500 dps (degree per second)
+    uint8_t bw_g = 0;
+    i2c_write(ACC_GYRO_ADDR, ACC_GYRO_CMD_CTRL_REG1_G, odr_g << 5 | fs_g << 3 | bw_g);
+
+    uint8_t odr_acc = odr_g;
+    uint8_t fs_acc = 0; // +-2G
+    uint8_t bw_acc = bw_g;
+    i2c_write(ACC_GYRO_ADDR, ACC_GYRO_CMD_CTRL_REG6_XL, odr_acc << 5 | fs_acc << 3 | bw_acc);
+
+    uint8_t fmode = 6;  // Continuous mode. If the FIFO is full, the new sample overwrites the older sample.
+    i2c_write(ACC_GYRO_ADDR, ACC_GYRO_CMD_FIFO_CTRL, fmode << 5);
+
+    ESP_LOGI(TAG, "Setting Magnetometer");
+    uint8_t temp_comp = 0;  // temperature compensation disabled
+    uint8_t om = 2; // high-performance mode
+    uint8_t data_rate = 6; //ODR = 40Hz
+    i2c_write(MAG_ADDR, MAG_CMD_CTRL_REG1_M, temp_comp << 7 | om << 5 | data_rate << 2);
+
+    uint8_t fs_mag = 0; // +- 4 gauss
+    i2c_write(MAG_ADDR, MAG_CMD_CTRL_REG2_M, fs_mag << 5);
+
+    uint8_t md_mag = 0; // continuous-conversion mode
+    i2c_write(MAG_ADDR, MAG_CMD_CTRL_REG3_M, md_mag);
+
+    uint8_t omz_mag = 2; // high-performance mode
+    i2c_write(MAG_ADDR, MAG_CMD_CTRL_REG4_M, omz_mag << 2);
+
 
     return ret;
 }

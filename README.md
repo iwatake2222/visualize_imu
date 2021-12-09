@@ -17,11 +17,12 @@ aaa
 
 # How to Build
 ## How to Build Firmware for ESP32 + IMU
+- Install espressif.esp-idf-extension extension in VSCode
 - Open `imu_esp32` folder
-- `idf.py menuconfig`
+- `idf.py menuconfig` in `ESP-IDF: Open ESP-IDF Terminal` in VSCode
     - set `ESP_WIFI_SSID` for your environment
     - set `ESP_WIFI_PASSWORD` for your environment
-    - if you use VSCode, run the command in `ESP-IDF: Open ESP-IDF Terminal`
+    - set `CONFIG_COMPILER_OPTIMIZATION_***` as you want like O2
 - Build
     - `ESP-IDF: Build your project` in VSCode
 - Flash

@@ -53,7 +53,6 @@ extern "C" void app_main(void)
     ESP_LOGI(TAG, "Initialize IMU");
     ESP_ERROR_CHECK(imu_initialize());
 
-
     while(1) {
         uint32_t current_ms_time = pdTICKS_TO_MS(xTaskGetTickCount());
         printf("%d\n", current_ms_time);
@@ -61,6 +60,24 @@ extern "C" void app_main(void)
         snprintf(buffer, sizeof(buffer), "[%08d] Message from ESP32", current_ms_time);
         int32_t msg_len = strnlen(buffer, sizeof(buffer));
         socket.send_to(asio::buffer(buffer, msg_len), destination);
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
+
+        (void)imu_read_temperature();
+
+        int16_t acc_x = 0;
+        int16_t acc_y = 0;
+        int16_t acc_z = 0;
+        imu_read_acc(acc_x, acc_y, acc_z);
+
+        int16_t gyro_x = 0;
+        int16_t gyro_y = 0;
+        int16_t gyro_z = 0;
+        imu_read_gyro(gyro_x, gyro_y, gyro_z);
+
+        int16_t mag_x = 0;
+        int16_t mag_y = 0;
+        int16_t mag_z = 0;
+        imu_read_mag(mag_x, mag_y, mag_z);
+
+        // vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
 }

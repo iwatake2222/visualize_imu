@@ -15,3 +15,7 @@ limitations under the License.
 
 esp_err_t imu_initialize(void);
 
+int16_t imu_read_temperature();
+void imu_read_gyro(int16_t& x, int16_t& y, int16_t& z);
+void imu_read_acc(int16_t& x, int16_t& y, int16_t& z);
+void imu_read_mag(int16_t& x, int16_t& y, int16_t& z);
