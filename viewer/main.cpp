@@ -80,6 +80,7 @@ private:
 /*** Global variable ***/
 bool do_exit = false;
 ValImuSharedList val_imu_shared_list;
+cv::Point3f mag_calib;
 
 /*** Function ***/
 static std::string GetDateTimeText()
@@ -100,6 +101,9 @@ static ValImu NormalizeIMU(const PayloadImu& payload)
             val_imu.gyro[i] = (float)payload.gyro[i] / SHORT_FS * GYRO_FS;
         val_imu.mag[i] = (float)payload.mag[i] / SHORT_FS * MAG_FS;
     }
+    val_imu.mag[0] -= mag_calib.x;
+    val_imu.mag[1] -= mag_calib.y;
+    val_imu.mag[2] -= mag_calib.z;
     return val_imu;
 }
 
@@ -156,9 +160,35 @@ int main(int argc, char* argv[])
             mag_list.push_back(cv::Point3f(val_imu.mag[0], val_imu.mag[1], val_imu.mag[2]));
         }
 
-        /* Draw scatter graph */
+        /* Key input */
         int32_t key = cv::waitKey(1);
+        if (key == 'r') {
+            /* Clear list */
+            val_imu_list.clear();
+        }
         if (key == 27) break;   /* ESC to quit */
+        if (key == 'c') {
+            /* Calibration */
+            /* todo: better to use the method of least squares for sphere*/
+            cv::Point3f calib = 0;
+            for (const auto& mag : mag_list) {
+                calib.x += mag.x;
+                calib.y += mag.y;
+                calib.z += mag.z;
+            }
+            mag_calib.x = calib.x / mag_list.size();
+            mag_calib.y = calib.y / mag_list.size();
+            mag_calib.z = calib.z / mag_list.size();
+            val_imu_list.clear();
+        }
+        if (key == 'C') {
+            /* Clear Calibration */
+            mag_calib.x = 0;
+            mag_calib.y = 0;
+            mag_calib.z = 0;
+        }
+
+        /* Draw scatter graph (will be displayed at the next waitKey) */
         graph_scatter_acc.Update(key, acc_list);
         graph_scatter_gyro.Update(key, gyro_list);
         graph_scatter_mag.Update(key, mag_list);

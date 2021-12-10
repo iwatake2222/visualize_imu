@@ -47,7 +47,7 @@ Graph::Graph(std::string name, float axis_size, int32_t width, int32_t height, i
         0, focal_length, height / 2.f,
         0, 0, 1);
     rvec_ = (cv::Mat_<float>(3, 1) << 0, 0, 0);
-    cv::Mat T = (cv::Mat_<float>(3, 1) << axis_size/2, -axis_size/2, -2 * axis_size);
+    cv::Mat T = (cv::Mat_<float>(3, 1) << 2 * axis_size, -2 * axis_size, -2 * axis_size);
 
     cv::Mat R;
     cv::Rodrigues(rvec_, R);
@@ -62,7 +62,7 @@ Graph::Graph(std::string name, float axis_size, int32_t width, int32_t height, i
         cv::Point3f(0, 0, 1) * axis_size,
     };
 
-    RotateCameraAngle(10, 10, 0);
+    RotateCameraAngle(40, 40, 0);
 
     cv::namedWindow(name_);
     cv::setMouseCallback(name_, CallbackMouseHandler, this);
