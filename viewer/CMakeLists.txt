@@ -21,3 +21,7 @@ endif()
 find_package(OpenCV REQUIRED)
 target_include_directories(${ProjectName} PUBLIC ${OpenCV_INCLUDE_DIRS})
 target_link_libraries(${ProjectName} ${OpenCV_LIBS})
+
+
+file(COPY ${CMAKE_CURRENT_LIST_DIR}/../resource DESTINATION ${CMAKE_BINARY_DIR}/)
+add_definitions(-DRESOURCE_DIR="${CMAKE_BINARY_DIR}/resource/")

@@ -32,7 +32,8 @@ public:
     GraphObject(std::string name, float axis_size = 1.0, int32_t width = 400, int32_t height = 400, int32_t focal_length = 400);
     virtual ~GraphObject();
     void Update(int32_t key, float pitch, float yaw, float roll, float x, float y, float z);
-
+private:
+    cv::Mat image_;
 };
 
 #endif
