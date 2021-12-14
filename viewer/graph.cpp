@@ -47,11 +47,10 @@ Graph::Graph(std::string name, float axis_size, int32_t width, int32_t height, i
         0, focal_length, height / 2.f,
         0, 0, 1);
     rvec_ = (cv::Mat_<float>(3, 1) << 0, 0, 0);
-    cv::Mat T = (cv::Mat_<float>(3, 1) << 2 * axis_size, -2 * axis_size, -2 * axis_size);
+    tvec_ = (cv::Mat_<float>(3, 1) << 0, 0, 0);
 
-    cv::Mat R;
-    cv::Rodrigues(rvec_, R);
-    tvec_ = -R * T;
+    rvec_ = (cv::Mat_<float>(3, 1) << Deg2Rad(30), Deg2Rad(30), 0);
+    tvec_ = (cv::Mat_<float>(3, 1) << 0, 0, axis_size * 3);
 
     object_axes_list_ = {
         cv::Point3f(-1, 0, 0) * axis_size,
@@ -62,10 +61,8 @@ Graph::Graph(std::string name, float axis_size, int32_t width, int32_t height, i
         cv::Point3f(0, 0, 1) * axis_size,
     };
 
-    RotateCameraAngle(40, 40, 0);
-
     cv::namedWindow(name_);
-    cv::setMouseCallback(name_, CallbackMouseHandler, this);
+    //cv::setMouseCallback(name_, CallbackMouseHandler, this);
 }
 
 Graph::~Graph()
@@ -95,10 +92,11 @@ void Graph::Update(int32_t key)
     cv::Mat mat = cv::Mat(height_, width_, CV_8UC3, cv::Scalar(70, 70, 70));
     DrawAxes(mat);
     cv::imshow(name_, mat);
+    cv::setMouseCallback(name_, CallbackMouseHandler, this);
 }
 
 
-void Graph::RotateCameraAngle(float dpitch_deg, float dyaw_deg, float droll_deg)
+void Graph::RotateAxis(float dpitch_deg, float dyaw_deg, float droll_deg)
 {
     cv::Mat R_old;
     cv::Rodrigues(rvec_, R_old);
@@ -111,7 +109,7 @@ void Graph::RotateCameraAngle(float dpitch_deg, float dyaw_deg, float droll_deg)
     cv::Mat R_new = R_delta * R_old;
     cv::Rodrigues(R_new, rvec_);
 
-    tvec_ = -R_new * T;
+    //tvec_ = -R_new * T;
 }
 
 void Graph::MoveCameraPos(float dtx, float dty, float dtz, bool is_on_world)    /* Oc - Ow */
@@ -169,17 +167,17 @@ void Graph::TreatKeyInputMain(int32_t key)
         MoveCameraPos(0, kIncPosPerFrame, 0, true);
         break;
     case 'q':
-        RotateCameraAngle(0, 0, 2.0f);
+        RotateAxis(0, 0, -2.0f);
         break;
     case 'e':
-        RotateCameraAngle(0, 0, -2.0f);
+        RotateAxis(0, 0, 2.0f);
         break;
     }
 }
 
 void Graph::CallbackMouse(int32_t event, int32_t x, int32_t y, int32_t flags)
 {
-    static constexpr float kIncAnglePerPx = 0.1f;
+    static constexpr float kIncAnglePerPx = 0.5f;
 
     static cv::Point drag_previous_point_ = { kInvalidValue, kInvalidValue };
     if (event == cv::EVENT_LBUTTONUP) {
@@ -192,7 +190,7 @@ void Graph::CallbackMouse(int32_t event, int32_t x, int32_t y, int32_t flags)
         if (drag_previous_point_.x != kInvalidValue) {
             float delta_yaw = kIncAnglePerPx * (x - drag_previous_point_.x);
             float pitch_delta = -kIncAnglePerPx * (y - drag_previous_point_.y);
-            RotateCameraAngle(pitch_delta, delta_yaw, 0);
+            RotateAxis(-pitch_delta, -delta_yaw, 0);
             drag_previous_point_.x = x;
             drag_previous_point_.y = y;
         }
@@ -205,4 +203,23 @@ void Graph::CallbackMouseHandler(int32_t event, int32_t x, int32_t y, int32_t fl
     Graph* p = (Graph*)userdata;
     name_focused_ = p->name_;
     p->CallbackMouse(event, x, y, flags);
+}
+
+
+void Graph::SetViewOnX()
+{
+    tvec_ = (cv::Mat_<float>(3, 1) << 0, 0, axis_size_ * 2);
+    rvec_ = (cv::Mat_<float>(3, 1) << 0, -Deg2Rad(90), 0);
+}
+
+void Graph::SetViewOnY()
+{
+    tvec_ = (cv::Mat_<float>(3, 1) << 0, 0, axis_size_ * 2);
+    rvec_ = (cv::Mat_<float>(3, 1) << Deg2Rad(90), 0, 0);
+}
+
+void Graph::SetViewOnZ()
+{
+    tvec_ = (cv::Mat_<float>(3, 1) << 0, 0, axis_size_ * 2);
+    rvec_ = (cv::Mat_<float>(3, 1) << 0, 0, 0);
 }

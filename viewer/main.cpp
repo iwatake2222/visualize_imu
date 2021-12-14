@@ -31,6 +31,14 @@ limitations under the License.
 #include "my_udp.h"
 #include "graph_scatter.h"
 
+
+/*** Macro ***/
+/* this must be the same as in ESP32 side */
+#define SHORT_FS 32768
+#define ACC_FS 2 // [G]
+#define GYRO_FS 500 // [dps]
+#define MAG_FS 4 // [Gauss]
+
 /*** Type ***/
 /* this must be the same as in ESP32 side */
 typedef struct {
@@ -40,6 +48,7 @@ typedef struct {
     int16_t mag[3];
 } PayloadImu;
 
+/* this is for internal use */
 typedef struct {
     uint32_t timestamp; // [ms]
     float acc[3];
@@ -47,7 +56,8 @@ typedef struct {
     float mag[3];
 } ValImu;
 
-class ValImuSharedList {
+/* buffer from UDP receiver to viewer */
+class SharedList {
 public:
     void push(const ValImu& data) {
         std::lock_guard<std::mutex> lock(mtx_);
@@ -70,19 +80,14 @@ private:
     std::vector<ValImu> val_list_;
 };
 
-/*** Macro ***/
-/* this must be the same as in ESP32 side */
-#define SHORT_FS 32768
-#define ACC_FS 2 // [G]
-#define GYRO_FS 500 // [dps]
-#define MAG_FS 4 // [Gauss]
-
 /*** Global variable ***/
 bool do_exit = false;
-ValImuSharedList val_imu_shared_list;
+SharedList shared_list;
 cv::Point3f mag_calib;
 
 /*** Function ***/
+static inline float Deg2Rad(float deg) { return static_cast<float>(deg * M_PI / 180.0); }
+
 static std::string GetDateTimeText()
 {
     char text[64];
@@ -124,25 +129,25 @@ static void ThreadReceiver()
         PayloadImu payload = { 0 };
         udp_recv.Recv((char*)&payload, sizeof(payload));
         ValImu val_imu = NormalizeIMU(payload);
-        val_imu_shared_list.push(val_imu);
+        shared_list.push(val_imu);
         //PrintIMU(val_imu);
     }
 }
 
 
+
 int main(int argc, char* argv[])
 {
-    std::thread thread_echo(ThreadReceiver);
+    std::thread thread_receiver(ThreadReceiver);
 
-    std::deque<ValImu> val_imu_list;
+    GraphScatterImu graph_scatter(ACC_FS, GYRO_FS, MAG_FS / 2.0);
 
-    GraphScatter graph_scatter_acc = GraphScatter("Acc", ACC_FS);
-    GraphScatter graph_scatter_gyro = GraphScatter("Gyro", GYRO_FS);
-    GraphScatter graph_scatter_mag = GraphScatter("Mag", MAG_FS / 2.0);
+    std::deque<ValImu> val_imu_list;    /* Store history for scatter graph */
 
     while (true) {
+        /*** Get the latest IMU data from sensor via UDP ***/
         ValImu val_imu_latest;
-        if (val_imu_shared_list.pop_latest(val_imu_latest)) {
+        if (shared_list.pop_latest(val_imu_latest)) {
             //PrintIMU(val_imu);
             val_imu_list.push_back(val_imu_latest);
             if (val_imu_list.size() > 10000) {
@@ -150,6 +155,35 @@ int main(int argc, char* argv[])
             }
         }
 
+        /*** Key input ***/
+        int32_t key = cv::waitKey(1);
+        if (key == 27) break;   /* ESC to quit */
+        if (key == 'r') {
+            /* Clear list */
+            val_imu_list.clear();
+        }
+        if (key == 'c') {
+            /* Calibration */
+            /* todo: better to use the method of least squares for sphere*/
+            cv::Point3f calib = 0;
+            for (const auto& val_imu : val_imu_list) {
+                calib.x += val_imu.mag[0];
+                calib.y += val_imu.mag[1];
+                calib.z += val_imu.mag[2];
+            }
+            mag_calib.x = calib.x / val_imu_list.size();
+            mag_calib.y = calib.y / val_imu_list.size();
+            mag_calib.z = calib.z / val_imu_list.size();
+            val_imu_list.clear();
+        }
+        if (key == 'C') {
+            /* Clear Calibration */
+            mag_calib.x = 0;
+            mag_calib.y = 0;
+            mag_calib.z = 0;
+        }
+
+        /*** Scatter Graph ***/
         /* Make list for scatter graph */
         std::vector<cv::Point3f> acc_list;
         std::vector<cv::Point3f> gyro_list;
@@ -160,42 +194,12 @@ int main(int argc, char* argv[])
             mag_list.push_back(cv::Point3f(val_imu.mag[0], val_imu.mag[1], val_imu.mag[2]));
         }
 
-        /* Key input */
-        int32_t key = cv::waitKey(1);
-        if (key == 'r') {
-            /* Clear list */
-            val_imu_list.clear();
-        }
-        if (key == 27) break;   /* ESC to quit */
-        if (key == 'c') {
-            /* Calibration */
-            /* todo: better to use the method of least squares for sphere*/
-            cv::Point3f calib = 0;
-            for (const auto& mag : mag_list) {
-                calib.x += mag.x;
-                calib.y += mag.y;
-                calib.z += mag.z;
-            }
-            mag_calib.x = calib.x / mag_list.size();
-            mag_calib.y = calib.y / mag_list.size();
-            mag_calib.z = calib.z / mag_list.size();
-            val_imu_list.clear();
-        }
-        if (key == 'C') {
-            /* Clear Calibration */
-            mag_calib.x = 0;
-            mag_calib.y = 0;
-            mag_calib.z = 0;
-        }
-
         /* Draw scatter graph (will be displayed at the next waitKey) */
-        graph_scatter_acc.Update(key, acc_list);
-        graph_scatter_gyro.Update(key, gyro_list);
-        graph_scatter_mag.Update(key, mag_list);
+        graph_scatter.Update(key, acc_list, gyro_list, mag_list);
     }
 
     do_exit = true;
-    thread_echo.join();
+    thread_receiver.join();
 
     return 0;
 }

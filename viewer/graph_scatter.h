@@ -28,17 +28,32 @@ limitations under the License.
 class GraphScatter : public Graph
 {
 public:
+    GraphScatter() {};
     GraphScatter(std::string name, float axis_size = 1.0, int32_t width = 400, int32_t height = 400, int32_t focal_length = 400);
-    
     virtual ~GraphScatter();
-    void Update(int32_t key, std::vector<cv::Point3f>& object_point_list);
+    void Update(int32_t key, const std::vector<cv::Point3f>& object_point_list);
 
+};
+
+class GraphScatterImu
+{
+public:
+    GraphScatterImu(float axis_size_acc, float axis_size_gyro, float axis_size_mag);
+    void Update(int32_t key, const std::vector<cv::Point3f>& acc_list, const std::vector<cv::Point3f>& gyro_list, const std::vector<cv::Point3f>& mag_list);
 
 private:
-
-
-private:
-
+    GraphScatter graph_scatter_acc;
+    GraphScatter graph_scatter_acc_x;
+    GraphScatter graph_scatter_acc_y;
+    GraphScatter graph_scatter_acc_z;
+    GraphScatter graph_scatter_gyro;
+    GraphScatter graph_scatter_gyro_x;
+    GraphScatter graph_scatter_gyro_y;
+    GraphScatter graph_scatter_gyro_z;
+    GraphScatter graph_scatter_mag;
+    GraphScatter graph_scatter_mag_x;
+    GraphScatter graph_scatter_mag_y;
+    GraphScatter graph_scatter_mag_z;
 };
 
 #endif
