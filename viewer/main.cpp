@@ -30,6 +30,7 @@ limitations under the License.
 
 #include "my_udp.h"
 #include "graph_scatter.h"
+#include "graph_object.h"
 
 
 /*** Macro ***/
@@ -141,6 +142,7 @@ int main(int argc, char* argv[])
     std::thread thread_receiver(ThreadReceiver);
 
     GraphScatterImu graph_scatter(ACC_FS, GYRO_FS, MAG_FS / 2.0);
+    GraphObject graph_object("Object", 5);
 
     std::deque<ValImu> val_imu_list;    /* Store history for scatter graph */
 
@@ -196,6 +198,11 @@ int main(int argc, char* argv[])
 
         /* Draw scatter graph (will be displayed at the next waitKey) */
         graph_scatter.Update(key, acc_list, gyro_list, mag_list);
+
+        /*** Draw Object ***/
+        static float deg = 0;
+        if (++deg >= 360) deg = 0;
+        graph_object.Update(key, deg, deg, deg, 0.5, 0.5, -0.5);
     }
 
     do_exit = true;

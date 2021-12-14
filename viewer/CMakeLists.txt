@@ -8,7 +8,7 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 14)
 
 add_executable(${ProjectName} main.cpp my_udp.cpp my_udp.h
-    graph.cpp graph.h graph_scatter.cpp graph_scatter.h
+    graph.cpp graph.h graph_scatter.cpp graph_scatter.h graph_object.cpp graph_object.h
 )
 
 if (WIN32)
