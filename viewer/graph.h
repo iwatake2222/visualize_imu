@@ -23,6 +23,8 @@ limitations under the License.
 
 #include <opencv2/opencv.hpp>
 
+#include "type.h"
+
 class Graph
 {
 public:

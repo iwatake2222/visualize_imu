@@ -28,63 +28,18 @@ limitations under the License.
 
 #include <opencv2/opencv.hpp>
 
+#include "type.h"
 #include "my_udp.h"
 #include "graph_scatter.h"
 #include "graph_object.h"
-
+#include "lsm_sphere.h"
 
 /*** Macro ***/
-/* this must be the same as in ESP32 side */
-#define SHORT_FS 32768
-#define ACC_FS 2 // [G]
-#define GYRO_FS 500 // [dps]
-#define MAG_FS 4 // [Gauss]
-
-/*** Type ***/
-/* this must be the same as in ESP32 side */
-typedef struct {
-    uint32_t timestamp; // [ms]
-    int16_t acc[3];
-    int16_t gyro[3];
-    int16_t mag[3];
-} PayloadImu;
-
-/* this is for internal use */
-typedef struct {
-    uint32_t timestamp; // [ms]
-    float acc[3];
-    float gyro[3];
-    float mag[3];
-} ValImu;
-
-/* buffer from UDP receiver to viewer */
-class SharedList {
-public:
-    void push(const ValImu& data) {
-        std::lock_guard<std::mutex> lock(mtx_);
-        val_list_.push_back(data);
-    }
-
-    bool pop_latest(ValImu& val_imu) {
-        std::lock_guard<std::mutex> lock(mtx_);
-        if (val_list_.empty()) {
-            return false;
-        } else {
-            val_imu = val_list_.back();
-            val_list_.clear();
-            return true;
-        }
-    }
-
-private:
-    std::mutex mtx_;
-    std::vector<ValImu> val_list_;
-};
 
 /*** Global variable ***/
 bool do_exit = false;
 SharedList shared_list;
-cv::Point3f mag_calib;
+LsmSphere mag_calibrator;
 
 /*** Function ***/
 static inline float Deg2Rad(float deg) { return static_cast<float>(deg * M_PI / 180.0); }
@@ -107,9 +62,9 @@ static ValImu NormalizeIMU(const PayloadImu& payload)
             val_imu.gyro[i] = (float)payload.gyro[i] / SHORT_FS * GYRO_FS;
         val_imu.mag[i] = (float)payload.mag[i] / SHORT_FS * MAG_FS;
     }
-    val_imu.mag[0] -= mag_calib.x;
-    val_imu.mag[1] -= mag_calib.y;
-    val_imu.mag[2] -= mag_calib.z;
+    val_imu.mag[0] -= mag_calibrator.Get().x;
+    val_imu.mag[1] -= mag_calibrator.Get().y;
+    val_imu.mag[2] -= mag_calibrator.Get().z;
     return val_imu;
 }
 
@@ -134,7 +89,6 @@ static void ThreadReceiver()
         //PrintIMU(val_imu);
     }
 }
-
 
 
 int main(int argc, char* argv[])
@@ -165,24 +119,11 @@ int main(int argc, char* argv[])
             val_imu_list.clear();
         }
         if (key == 'c') {
-            /* Calibration */
-            /* todo: better to use the method of least squares for sphere*/
-            cv::Point3f calib = 0;
-            for (const auto& val_imu : val_imu_list) {
-                calib.x += val_imu.mag[0];
-                calib.y += val_imu.mag[1];
-                calib.z += val_imu.mag[2];
-            }
-            mag_calib.x = calib.x / val_imu_list.size();
-            mag_calib.y = calib.y / val_imu_list.size();
-            mag_calib.z = calib.z / val_imu_list.size();
+            mag_calibrator.Calculate(val_imu_list);
             val_imu_list.clear();
         }
         if (key == 'C') {
-            /* Clear Calibration */
-            mag_calib.x = 0;
-            mag_calib.y = 0;
-            mag_calib.z = 0;
+            mag_calibrator.Clear();
         }
 
         /*** Scatter Graph ***/
